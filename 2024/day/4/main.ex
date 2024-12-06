@@ -60,3 +60,24 @@ diagonal =
 count = horizontal + vertical + diagonal
 # Still learning syntax 🫣
 count |> IO.puts()
+
+# Part 2
+char_at_pos = fn i, j -> String.at(Enum.at(lines, i), j) end
+
+is_mas_at = fn i, j ->
+  ((char_at_pos.(i - 1, j - 1) === "M" and char_at_pos.(i + 1, j + 1) === "S") or
+     (char_at_pos.(i - 1, j - 1) === "S" and char_at_pos.(i + 1, j + 1) === "M")) and
+    ((char_at_pos.(i - 1, j + 1) === "M" and char_at_pos.(i + 1, j - 1) === "S") or
+       (char_at_pos.(i - 1, j + 1) === "S" and char_at_pos.(i + 1, j - 1) === "M"))
+end
+
+mas_count =
+  Enum.sum(
+    Enum.map(1..(height - 2), fn i ->
+      Enum.count(
+        Enum.filter(1..(width - 2), fn j -> char_at_pos.(i, j) === "A" and is_mas_at.(i, j) end)
+      )
+    end)
+  )
+
+IO.puts(mas_count)
