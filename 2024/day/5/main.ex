@@ -19,8 +19,8 @@ befores_to_after =
   Enum.group_by(parsed_rules, fn [bef, _] -> bef end, fn [_, aft] -> aft end)
   |> Enum.into(%{}, fn {k, vals} -> {k, vals |> MapSet.new()} end)
 
-right_order_updates =
-  Enum.filter(
+{right_order_updates, wrong_order_updates} =
+  Enum.split_with(
     parsed_updates,
     fn update ->
       {_, _, is_right_order} =
@@ -44,3 +44,22 @@ right_order_updates =
 middle_page_numbers = right_order_updates |> Enum.map(fn u -> Enum.at(u, length(u) |> div(2)) end)
 sum = middle_page_numbers |> Enum.sum()
 IO.puts(sum)
+
+# Part 2
+fixed_order_updates =
+  wrong_order_updates
+  |> Enum.map(fn update ->
+    update
+    |> Enum.sort(fn l, r ->
+      must_be_before_l = after_to_befores |> Map.get(l, MapSet.new())
+      must_be_after_r = befores_to_after |> Map.get(r, MapSet.new())
+
+      not MapSet.member?(must_be_before_l, r) and not MapSet.member?(must_be_after_r, l)
+    end)
+  end)
+
+fixed_middle_page_numbers =
+  fixed_order_updates |> Enum.map(fn u -> Enum.at(u, length(u) |> div(2)) end)
+
+fixed_sum = fixed_middle_page_numbers |> Enum.sum()
+IO.puts(fixed_sum)
