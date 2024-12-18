@@ -1,3 +1,4 @@
+# Part 1
 [registers, program] = File.read!("input") |> String.trim() |> String.split("\n\n")
 
 registers =
@@ -111,4 +112,4 @@ end
 
 execute.({registers, 0, []}, execute) |> Enum.join(",") |> IO.puts()
 
-# Part 2: See Rust binary
+# Part 2: See Python file
