@@ -1,8 +1,11 @@
+empty = "."
 wall = "#"
 start = "S"
 finish = "E"
 
-map = File.read!("input") |> String.trim() |> String.split("\n") |> Enum.map(&String.codepoints/1)
+map =
+  File.read!("input") |> String.trim() |> String.split("\n") |> Enum.map(&String.codepoints/1)
+
 height = map |> length()
 width = map |> hd() |> length()
 
@@ -15,63 +18,106 @@ find_in_map = fn to_find ->
     |> Enum.filter(fn {c, j} -> c === to_find end)
     |> Enum.map(fn {c, j} -> [i, j] end)
   end)
-  |> hd()
 end
 
-start_pos = find_in_map.(start)
-finish_pos = find_in_map.(finish)
+start_pos = find_in_map.(start) |> hd()
+finish_pos = find_in_map.(finish) |> hd()
+walls = find_in_map.(wall) |> MapSet.new()
 directions = [:left, :right, :up, :down]
 
-dfs_to_end = fn pos, dir, cost_so_far, visited, self ->
-  [i, j] = pos
+dijkstra = fn unvisited, distances, self ->
+  candidates =
+    unvisited
+    |> MapSet.to_list()
+    |> Enum.filter(&Map.has_key?(distances, &1))
 
-  if pos === finish_pos do
-    cost_so_far
+  if candidates |> length() === 0 do
+    directions
+    |> Enum.map(&{finish_pos, &1})
+    |> Enum.map(&Map.get(distances, &1))
+    |> Enum.filter(&(&1 !== nil))
+    |> Enum.min()
   else
-    valid_directions =
-      directions
-      |> Enum.map(fn new_dir ->
-        {new_dir,
-         case dir do
-           :left -> [i, j - 1]
-           :right -> [i, j + 1]
-           :up -> [i - 1, j]
-           :down -> [i + 1, j]
-         end}
-      end)
-      |> Enum.filter(fn {new_dir, new_pos} ->
-        [n_i, n_j] = new_pos
-        n_i in 0..(height - 1) and n_j in 0..(width - 1) and not MapSet.member?(visited, new_pos)
-      end)
+    {current_pos, current_dir} = candidates |> Enum.min_by(&Map.get(distances, &1))
+    [i, j] = current_pos
+    current_cost = distances |> Map.get({current_pos, current_dir})
 
-    valid_explorations =
-      valid_directions
-      |> Enum.map(fn {new_dir, new_pos} ->
-        same_dir = new_dir === dir
-
-        adjacent_dir =
-          cond do
-            dir === :left or dir === :right -> new_dir === :up or new_dir === :down
-            dir === :up or dir === :down -> new_dir === :left or new_dir === :right
-          end
-
-        added_cost =
-          cond do
-            same_dir -> 1
-            adjacent_dir -> 1000 + 1
-            true -> 2000 + 1
-          end
-
-        self.(new_pos, new_dir, cost_so_far + added_cost, MapSet.put(visited, new_pos), self)
-      end)
-      |> Enum.filter(&(&1 !== nil))
-
-    if valid_explorations |> length() === 0 do
-      nil
+    if current_pos === finish do
+      current_cost
     else
-      valid_explorations |> Enum.min()
+      reachable =
+        directions
+        |> Enum.map(fn new_dir ->
+          same_dir = new_dir === current_dir
+
+          opposite_dir =
+            case current_dir do
+              :left -> new_dir === :right
+              :right -> new_dir === :left
+              :up -> new_dir === :down
+              :down -> new_dir === :up
+            end
+
+          new_pos =
+            cond do
+              same_dir ->
+                case current_dir do
+                  :left -> [i, j - 1]
+                  :right -> [i, j + 1]
+                  :up -> [i - 1, j]
+                  :down -> [i + 1, j]
+                end
+
+              true ->
+                current_pos
+            end
+
+          added_cost =
+            cond do
+              same_dir -> 1
+              opposite_dir -> 2000
+              true -> 1000
+            end
+
+          new_cost = current_cost + added_cost
+
+          {new_pos, new_dir, new_cost}
+        end)
+        |> Enum.filter(fn {new_pos, new_dir, _} ->
+          [n_i, n_j] = new_pos
+
+          n_i in 0..(height - 1) and n_j in 0..(width - 1) and
+            not MapSet.member?(walls, new_pos)
+        end)
+
+      new_unvisited =
+        unvisited
+        |> MapSet.delete({current_pos, current_dir})
+
+      unvisited |> MapSet.size() |> IO.inspect()
+
+      new_distances =
+        reachable
+        |> Enum.reduce(distances, fn {new_pos, new_dir, new_cost}, acc ->
+          acc
+          |> Map.get_and_update({new_pos, new_dir}, fn existing_cost ->
+            updated_cost =
+              if existing_cost === nil, do: new_cost, else: min(existing_cost, new_cost)
+
+            {existing_cost, updated_cost}
+          end)
+          |> elem(1)
+        end)
+
+      self.(new_unvisited, new_distances, self)
     end
   end
 end
 
-dfs_to_end.(start_pos, :right, 0, MapSet.new(), dfs_to_end) |> IO.inspect()
+unvisited =
+  find_in_map.(empty)
+  |> Enum.concat([start_pos, finish_pos])
+  |> Enum.flat_map(fn pos -> directions |> Enum.map(fn dir -> {pos, dir} end) end)
+  |> MapSet.new()
+
+dijkstra.(unvisited, Map.new([{{start_pos, :right}, 0}]), dijkstra) |> IO.inspect()
